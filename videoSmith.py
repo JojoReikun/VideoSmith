@@ -253,6 +253,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
 
     def update_video_preview_threaded(self, value, progress_callback):
         self.preview_frame = value
+        self.ui.right_horizontalSlider_gamma.setValue(10)   # reset gamma slider
         print("value threaded: ", self.preview_frame)
         preview_image, frame_count = handle_video_preview.set_default_preview(self.videolist, self.preview_frame, self.selected_video)
 
