@@ -8,7 +8,7 @@ from pathlib import Path
 from PyQt5 import QtWidgets, QtGui, QtCore
 
 from qt_gui.videoEnhancer import Ui_MainWindow  # importing main window of the GUI
-from scripts import handle_video_preview, histograms, basic_corrections
+from scripts import handle_video_preview, histograms, basic_corrections, canny_edge_detection
 
 """
 Locations of required executables and how to use them:
@@ -103,7 +103,8 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.progress = 0
         self.updateProgress(self.progress)
         self.selected_preview = 0
-        self.preview_frame = 0
+        self.preview_frame = self.ui.mid_horizontalSlider_frame.value()
+        self.preview_image = None   # always the current preview image
         self.frame_count = 100
 
         # set output location
@@ -143,9 +144,15 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.ui.right_comboBox_chooseThreshold.addItem("CLAHE")
         self.ui.right_comboBox_chooseThreshold.currentIndexChanged.connect(self.calculate_histogram)
 
+        # canny edge detection
+        self.edge_image = None
+        self.ui.right_checkBox_cannyEdgeDetector.toggled.connect(self.calc_edges)
+
         # basic corrections
-        self.gamma_value = 1
+        self.gamma_value = 10
+        self.gamma_image = None
         self.ui.right_horizontalSlider_gamma.valueChanged.connect(self.adjust_gamma)
+        self.ui.right_pushButton_applyGamma.pressed.connect(self.apply_gamma)
 
 
     """
@@ -218,14 +225,21 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
     def start_video_preview_threaded(self, progress_callback):
         self.grayframe = None
         self.grayframe_equalized = None
+        self.gamma_image = None
         self.histogram_calculated = False
         self.histogram_equalized = False
         self.gamma_value = 10
         self.ui.right_horizontalSlider_gamma.setValue(10)
+        self.preview_frame = self.ui.mid_horizontalSlider_frame.value()
 
         if self.number_of_videos > 0:
             # set initial video preview:
+            self.log_info("starting preview with frame: " + str(self.preview_frame))
+
             preview_image, frame_count = handle_video_preview.set_default_preview(self.videolist, self.preview_frame, self.selected_video)
+            self.preview_image = preview_image
+
+            print(preview_image)
 
             # update frame count and adjust length of slider:
             self.frame_count = frame_count
@@ -233,7 +247,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
             self.log_info("video " + str(self.selected_video) + " with " + str(self.frame_count) + " frames selected for preview, slider size adjusted")
 
             preview_image = QtGui.QImage(preview_image.data, preview_image.shape[1], preview_image.shape[0],
-                                      QtGui.QImage.Format_RGB888).rgbSwapped()
+                                      QtGui.QImage.Format_Grayscale8).rgbSwapped()
             # scale image to preview window:
             preview_image_scaled = preview_image.scaled(self.ui.mid_label_livePreview.width(),
                                                      self.ui.mid_label_livePreview.height(),
@@ -253,14 +267,13 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
 
     def update_video_preview_threaded(self, value, progress_callback):
         self.preview_frame = value
-        self.ui.right_horizontalSlider_gamma.setValue(10)   # reset gamma slider
         print("value threaded: ", self.preview_frame)
         preview_image, frame_count = handle_video_preview.set_default_preview(self.videolist, self.preview_frame, self.selected_video)
 
         self.log_info("frame " + str(self.preview_frame) + " selected for preview")
 
         preview_image = QtGui.QImage(preview_image.data, preview_image.shape[1], preview_image.shape[0],
-                                     QtGui.QImage.Format_RGB888).rgbSwapped()
+                                     QtGui.QImage.Format_Grayscale8).rgbSwapped()
         # scale image to preview window:
         preview_image_scaled = preview_image.scaled(self.ui.mid_label_livePreview.width(),
                                                     self.ui.mid_label_livePreview.height(),
@@ -279,7 +292,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
     def update_video_preview_index_threaded(self, value, index, progress_callback):
         self.preview_frame = value
         self.selected_video = index
-        preview_image, frame_count = handle_video_preview.set_default_preview(self.videolist, self.preview_frame, self.selected_video)
+        preview_image, frame_count = handle_video_preview.update_preview(self.videolist, self.preview_frame, self.selected_video)
 
         self.frame_count = frame_count
         self.ui.mid_horizontalSlider_frame.setMaximum(self.frame_count)
@@ -287,7 +300,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.log_info("video " + str(self.selected_video) + " with " + str(self.frame_count) + " frames selected for preview, slider size adjusted")
 
         preview_image = QtGui.QImage(preview_image.data, preview_image.shape[1], preview_image.shape[0],
-                                     QtGui.QImage.Format_RGB888).rgbSwapped()
+                                     QtGui.QImage.Format_Grayscale8).rgbSwapped()
         # scale image to preview window:
         preview_image_scaled = preview_image.scaled(self.ui.mid_label_livePreview.width(),
                                                     self.ui.mid_label_livePreview.height(),
@@ -304,7 +317,6 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.ui.mid_pushButton_updatePreview.setDisabled(True)
 
     def update_video_preview_hist(self):
-        # TODO: write new video preview with hist applied to preview frame before display
         worker = Worker(self.update_video_preview_hist_threaded)
         self.threadpool.start(worker)
 
@@ -350,9 +362,8 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.threadpool.start(worker)
 
     def calculate_histogram_threaded(self, progress_callback):
-        histogram_calculated, grayframe, plot_hist_orig = histograms.calculate_histogram(self.videolist, self.preview_frame, self.selected_video)
+        histogram_calculated, plot_hist_orig = histograms.calculate_histogram(self.preview_image)
         self.histogram_calculated = histogram_calculated
-        self.grayframe = grayframe
         self.log_info("histogram calculated for " + self.ui.left_comboBox_selectPreview.currentText())
 
         # add histogram plot to label:
@@ -371,19 +382,22 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
     def equalize_histogram_threaded(self, progress_callback):
         use_threshold = self.use_threshold
         self.threshold_text = self.ui.right_comboBox_chooseThreshold.currentText()
-        info, grayframe_equalized, histogram_calculated, plot_hist_equ = histograms.equalize_histogram(self.histogram_calculated, self.grayframe, use_threshold, self.threshold_text)
+
+        info, grayframe_equalized, histogram_calculated, plot_hist_equ = histograms.equalize_histogram(
+            self.histogram_calculated, self.preview_image, use_threshold, self.threshold_text)
         self.log_info(info)
         self.histogram_calculated = histogram_calculated
         self.grayframe_equalized = grayframe_equalized
+        self.preview_image = grayframe_equalized
 
-        plot_hist_equ = QtGui.QImage(plot_hist_equ.data, plot_hist_equ.shape[1], plot_hist_equ.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
+        plot_hist_equ = QtGui.QImage(plot_hist_equ.data, plot_hist_equ.shape[1], plot_hist_equ.shape[0],
+                                     QtGui.QImage.Format_RGB888).rgbSwapped()
         # scale image to preview window:
         plot_hist_equ_scaled = plot_hist_equ.scaled(self.ui.mid_label_equHist.width(),
                                                     self.ui.mid_label_equHist.height(),
                                                     QtCore.Qt.KeepAspectRatio)
         # add histogram plot to label:
         self.ui.mid_label_equHist.setPixmap(QtGui.QPixmap.fromImage(plot_hist_equ_scaled))
-
 
         self.histogram_equalized = True
         self.ui.mid_pushButton_updatePreview.setEnabled(True)
@@ -417,16 +431,72 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
 
     def adjust_gamma_threaded(self, value, progress_callback):
         self.gamma_value = value
-        preview_image = basic_corrections.change_gamma(self.videolist, self.preview_frame, self.selected_video, self.gamma_value)
+        if self.preview_image is None:
+            self.log_info("start image preview first!")
+        else:
+            preview_image = basic_corrections.change_gamma(self.preview_image, self.gamma_value)
+            self.gamma_image = preview_image
 
-        preview_image = QtGui.QImage(preview_image.data, preview_image.shape[1], preview_image.shape[0],
-                                     QtGui.QImage.Format_RGB888).rgbSwapped()
-        # scale image to preview window:
-        preview_image_scaled = preview_image.scaled(self.ui.mid_label_livePreview.width(),
-                                                    self.ui.mid_label_livePreview.height(),
-                                                    QtCore.Qt.KeepAspectRatio)
-        self.ui.mid_label_livePreview.setPixmap(QtGui.QPixmap.fromImage(preview_image_scaled))
+            preview_image = QtGui.QImage(preview_image.data, preview_image.shape[1], preview_image.shape[0],
+                                         QtGui.QImage.Format_Grayscale8).rgbSwapped()
+            # scale image to preview window:
+            preview_image_scaled = preview_image.scaled(self.ui.mid_label_livePreview.width(),
+                                                        self.ui.mid_label_livePreview.height(),
+                                                        QtCore.Qt.KeepAspectRatio)
+            self.ui.mid_label_livePreview.setPixmap(QtGui.QPixmap.fromImage(preview_image_scaled))
 
+    def calc_edges(self):
+        worker = Worker(self.calc_edges_threaded)
+        self.threadpool.start(worker)
+
+    def calc_edges_threaded(self, progress_callback):
+        if self.ui.right_checkBox_cannyEdgeDetector.isChecked():
+            # check which image to use for edge detection:
+            if self.preview_image is not None:
+                if self.grayframe is not None:
+                    if self.grayframe_equalized is not None:
+                        self.edge_image = canny_edge_detection.canny_edge_detector(self.grayframe_equalized)
+                    else:
+                        self.edge_image = canny_edge_detection.canny_edge_detector(self.grayframe)
+                else:
+                    self.edge_image = canny_edge_detection.canny_edge_detector(self.preview_image)
+            else:
+                self.log_info("start video preview first!")
+
+            # display edge_image:
+            edge_image = self.edge_image
+            # add histogram plot to label:
+            edge_image = QtGui.QImage(edge_image.data, edge_image.shape[1], edge_image.shape[0],
+                                                  QtGui.QImage.Format_Grayscale8).rgbSwapped()
+            # scale image to preview window:
+            edge_image_scaled = edge_image.scaled(self.ui.mid_label_livePreview.width(),
+                                                                  self.ui.mid_label_livePreview.height(),
+                                                                  QtCore.Qt.KeepAspectRatio)
+            self.ui.mid_label_livePreview.setPixmap(QtGui.QPixmap.fromImage(edge_image_scaled))
+        else:
+            preview = None
+            self.edge_image = None
+            # reset preview:
+            if self.preview_image is not None:
+                if self.grayframe is not None:
+                    if self.grayframe_equalized is not None:
+                        preview = self.grayframe_equalized
+                    else:
+                        preview = self.grayframe
+                else:
+                    preview = self.preview_image
+            # display edge_image:
+            preview = QtGui.QImage(preview.data, preview.shape[1], preview.shape[0],
+                                      QtGui.QImage.Format_Grayscale8).rgbSwapped()
+            # scale image to preview window:
+            preview_scaled = preview.scaled(self.ui.mid_label_livePreview.width(),
+                                                  self.ui.mid_label_livePreview.height(),
+                                                  QtCore.Qt.KeepAspectRatio)
+            self.ui.mid_label_livePreview.setPixmap(QtGui.QPixmap.fromImage(preview_scaled))
+
+    def apply_gamma(self):
+        self.preview_image = self.gamma_image
+        self.log_info("gamma of " + str(self.ui.right_horizontalSlider_gamma.value()) + " applied")
 
 
 if __name__ == "__main__":

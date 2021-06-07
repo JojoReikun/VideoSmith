@@ -17,9 +17,16 @@ def handle_video_preview(videolist, selected_preview, preview_frame):
         preview_image = None
 
 
+def convert_to_grayscale(image):
+
+    gray_frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    return gray_frame
+
+
 def set_default_preview(videolist, preview_frame, selected_video):
     # load the original image
-    #print("in handle_preview: ", videolist)
+    print("in handle_preview: ", videolist)
 
     cap = cv2.VideoCapture(videolist[selected_video-1])
 
@@ -28,7 +35,7 @@ def set_default_preview(videolist, preview_frame, selected_video):
         print("Error opening video stream or file")
 
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    #print('Frame count:', frame_count)
+    print('Frame count:', frame_count)
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, preview_frame)
     # Capture specified preview frame
@@ -36,7 +43,31 @@ def set_default_preview(videolist, preview_frame, selected_video):
 
     original = frame
 
-    preview_image = original
+    # When everything done, release the video capture object
+    cap.release()
+    # Closes all the frames
+    #cv2.destroyAllWindows()
+
+    preview_image = convert_to_grayscale(original)
+
+    return preview_image, frame_count
+
+
+def update_preview(videolist, preview_frame, selected_video):
+    # load the original image
+    cap = cv2.VideoCapture(videolist[selected_video-1])
+
+    # Check if camera opened successfully
+    if (cap.isOpened() == False):
+        print("Error opening video stream or file")
+
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, preview_frame)
+    # Capture specified preview frame
+    _, frame = cap.read()
+
+    preview_image = frame
 
     # When everything done, release the video capture object
     cap.release()
@@ -44,4 +75,6 @@ def set_default_preview(videolist, preview_frame, selected_video):
     #cv2.destroyAllWindows()
 
     return preview_image, frame_count
+
+
 

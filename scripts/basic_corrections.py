@@ -1,32 +1,16 @@
 import cv2
 import numpy as np
 
-def change_gamma(videolist, preview_frame, selected_video, gamma_value):
-    cap = cv2.VideoCapture(videolist[selected_video - 1])
-
-    # Check if camera opened successfully
-    if (cap.isOpened() == False):
-        print("Error opening video stream or file")
-
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    # print('Frame count:', frame_count)
-
-    cap.set(cv2.CAP_PROP_POS_FRAMES, preview_frame)
-    # Capture specified preview frame
-    _, frame = cap.read()
-
-    original = frame
-
-    # When everything done, release the video capture object
-    cap.release()
-
+def change_gamma(preview_image, gamma_value):
     # adjust gamma:
     if gamma_value == 10:
-        image_gamma = original
+        image_gamma = preview_image
         return
-
+    elif gamma_value == 0:
+        gamma_value == 1
+        image_gamma = adjust_gamma(preview_image, gamma_value)
     else:
-        image_gamma = adjust_gamma(original, gamma_value)
+        image_gamma = adjust_gamma(preview_image, gamma_value)
 
     return image_gamma
 

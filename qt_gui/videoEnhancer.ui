@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1040</width>
+    <width>1079</width>
     <height>803</height>
    </rect>
   </property>
@@ -744,7 +744,7 @@ QSizeGrip
      <rect>
       <x>10</x>
       <y>10</y>
-      <width>1021</width>
+      <width>1063</width>
       <height>747</height>
      </rect>
     </property>
@@ -1503,6 +1503,13 @@ QLabel
            </property>
           </widget>
          </item>
+         <item>
+          <widget class="QPushButton" name="right_pushButton_applyGamma">
+           <property name="text">
+            <string>apply gamma</string>
+           </property>
+          </widget>
+         </item>
         </layout>
        </item>
        <item>
@@ -1542,6 +1549,13 @@ QLabel
            </property>
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="right_pushButton_applyBright">
+           <property name="text">
+            <string>apply bright</string>
            </property>
           </widget>
          </item>
@@ -1587,7 +1601,21 @@ QLabel
            </property>
           </widget>
          </item>
+         <item>
+          <widget class="QPushButton" name="right_pushButton_applyContr">
+           <property name="text">
+            <string>apply contr.</string>
+           </property>
+          </widget>
+         </item>
         </layout>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="right_checkBox_cannyEdgeDetector">
+         <property name="text">
+          <string>canny edge detection</string>
+         </property>
+        </widget>
        </item>
        <item>
         <spacer name="verticalSpacer_8">
@@ -1752,7 +1780,7 @@ QLabel
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1040</width>
+     <width>1079</width>
      <height>21</height>
     </rect>
    </property>
