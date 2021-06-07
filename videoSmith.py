@@ -268,7 +268,8 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
     def update_video_preview_threaded(self, value, progress_callback):
         self.preview_frame = value
         print("value threaded: ", self.preview_frame)
-        preview_image, frame_count = handle_video_preview.set_default_preview(self.videolist, self.preview_frame, self.selected_video)
+        preview_image, frame_count = handle_video_preview.update_preview(self.videolist, self.preview_frame, self.selected_video)
+        self.preview_image = preview_image
 
         self.log_info("frame " + str(self.preview_frame) + " selected for preview")
 
@@ -293,7 +294,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.preview_frame = value
         self.selected_video = index
         preview_image, frame_count = handle_video_preview.update_preview(self.videolist, self.preview_frame, self.selected_video)
-
+        self.preview_image = preview_image
         self.frame_count = frame_count
         self.ui.mid_horizontalSlider_frame.setMaximum(self.frame_count)
 
