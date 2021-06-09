@@ -107,6 +107,14 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.preview_image = None   # always the current preview image
         self.frame_count = 100
 
+        # these will be used to apply settings which are true to all videos
+        self.equalization = False
+        self.thresholding = False
+        self.gamma = False
+        self.brightness = False
+        self.contrast = False
+        self.crop = False
+
         # set output location
         self.output_location = os.path.join(str(Path.cwd()), "output")
         self.update_output_location()
@@ -123,6 +131,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.ui.mid_horizontalSlider_frame.valueChanged.connect(self.update_video_preview)
         self.ui.mid_pushButton_updatePreview.setDisabled(True)
         self.ui.mid_pushButton_updatePreview.pressed.connect(self.update_video_preview_hist)
+        self.ui.right_pushButton_revertToOriginal.pressed.connect(self.start_video_preview)
 
         """
         Enhancement Setup
@@ -149,8 +158,13 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.ui.right_checkBox_cannyEdgeDetector.toggled.connect(self.calc_edges)
 
         # basic corrections
-        self.gamma_value = 10
+        self.gamma_value = 10           # [-10;10]
         self.gamma_image = None
+        self.brightness_value = 0       # [-255;255]
+        self.brightness_image = None
+        self.contrast_value = 0         # [-127;127]
+        self.contrast_image = None
+
         self.ui.right_horizontalSlider_gamma.valueChanged.connect(self.adjust_gamma)
         self.ui.right_pushButton_applyGamma.pressed.connect(self.apply_gamma)
 
@@ -223,13 +237,16 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.threadpool.start(worker)
 
     def start_video_preview_threaded(self, progress_callback):
+        # reset everything
         self.grayframe = None
         self.grayframe_equalized = None
-        self.gamma_image = None
+        self.preview_image = None
         self.histogram_calculated = False
         self.histogram_equalized = False
+        self.gamma_image = None
         self.gamma_value = 10
         self.ui.right_horizontalSlider_gamma.setValue(10)
+        self.gamma = False
         self.preview_frame = self.ui.mid_horizontalSlider_frame.value()
 
         if self.number_of_videos > 0:
@@ -504,6 +521,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
     def apply_gamma(self):
         self.preview_image = self.gamma_image
         self.log_info("gamma of " + str(self.ui.right_horizontalSlider_gamma.value()) + " applied")
+        self.gamma = True
 
 
 if __name__ == "__main__":
