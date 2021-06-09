@@ -291,11 +291,14 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.threadpool.start(worker)
 
     def update_video_preview_index_threaded(self, value, index, progress_callback):
+        self.grayframe = None
+        self.grayframe_equalized = None
+        self.gamma_image = None
+        self.preview_image = None
         self.preview_frame = value
         self.selected_video = index
         preview_image, frame_count = handle_video_preview.update_preview(self.videolist, self.preview_frame, self.selected_video)
 
-        #TODO: zooms preview image weirdly, since updating it...
         self.preview_image = preview_image
 
         self.frame_count = frame_count

@@ -67,12 +67,14 @@ def update_preview(videolist, preview_frame, selected_video):
     # Capture specified preview frame
     _, frame = cap.read()
 
-    preview_image = frame
+    original = frame
 
     # When everything done, release the video capture object
     cap.release()
     # Closes all the frames
     #cv2.destroyAllWindows()
+
+    preview_image = convert_to_grayscale(original)
 
     return preview_image, frame_count
 
