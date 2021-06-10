@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import cv2
 
-def save_new_videos(output_folder, videolist, enhancements, crop):
+def save_new_videos(output_folder, videolist, enhancements, crop, crop_start, crop_end):
     # need output location
     # need video list
     # need new filenames

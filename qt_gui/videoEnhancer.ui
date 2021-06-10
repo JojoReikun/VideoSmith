@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1079</width>
-    <height>803</height>
+    <height>866</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -1282,7 +1282,7 @@ QPushButton::checked
        <item>
         <widget class="QLabel" name="mid_label_cropVideos">
          <property name="text">
-          <string>^ crops all videos cutting off the set values from start and end ^</string>
+          <string>^ crops all videos cutting off the set number of frames from start and end ^</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
@@ -1746,6 +1746,13 @@ QLabel
         <widget class="QCheckBox" name="right_checkBox_cannyEdgeDetector">
          <property name="text">
           <string>canny edge detection</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="right_checkBox_sharpen">
+         <property name="text">
+          <string>sharpen image</string>
          </property>
         </widget>
        </item>

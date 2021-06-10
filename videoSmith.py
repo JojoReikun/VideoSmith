@@ -8,7 +8,7 @@ from pathlib import Path
 from PyQt5 import QtWidgets, QtGui, QtCore
 
 from qt_gui.videoEnhancer import Ui_MainWindow  # importing main window of the GUI
-from scripts import handle_video_preview, histograms, basic_corrections, canny_edge_detection
+from scripts import handle_video_preview, histograms, basic_corrections, canny_edge_detection, sharpen
 
 """
 Locations of required executables and how to use them:
@@ -105,6 +105,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.selected_preview = 0
         self.preview_frame = self.ui.mid_horizontalSlider_frame.value()
         self.preview_image = None   # always the current preview image
+        self.old_preview = None     # used to reset preview for toggle enhancements
         self.frame_count = 100
 
         # these will be used to apply settings which are true to all videos
@@ -157,6 +158,10 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.edge_image = None
         self.ui.right_checkBox_cannyEdgeDetector.toggled.connect(self.calc_edges)
 
+        # sharpen
+        self.sharpen = False
+        self.ui.right_checkBox_sharpen.toggled.connect(self.sharpen_image)
+
         # basic corrections
         self.gamma_value = 10           # [-10;10]
         self.gamma_image = None
@@ -167,7 +172,9 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
 
         self.ui.right_horizontalSlider_gamma.valueChanged.connect(self.adjust_gamma)
         self.ui.right_pushButton_applyGamma.pressed.connect(self.apply_gamma)
-
+        self.crop_off_start = 0
+        self.crop_off_end = 0
+        self.ui.mid_radioButton_cropVideo.pressed.connect(self.crop_video)
 
     """
     Setup and Video Previews
@@ -256,7 +263,7 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
             preview_image, frame_count = handle_video_preview.set_default_preview(self.videolist, self.preview_frame, self.selected_video)
             self.preview_image = preview_image
 
-            print(preview_image)
+            # print(preview_image)
 
             # update frame count and adjust length of slider:
             self.frame_count = frame_count
@@ -518,10 +525,61 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
                                                   QtCore.Qt.KeepAspectRatio)
             self.ui.mid_label_livePreview.setPixmap(QtGui.QPixmap.fromImage(preview_scaled))
 
+    def sharpen_image(self):
+        worker = Worker(self.sharpen_image_threaded)
+        self.threadpool.start(worker)
+
+    def sharpen_image_threaded(self, progress_callback):
+        self.old_preview = self.preview_image
+        if self.ui.right_checkBox_sharpen.isChecked():
+            self.sharpen = True
+            sharpened_img = sharpen.sharpen(self.preview_image)
+
+            # display sharpened image:
+            preview = QtGui.QImage(sharpened_img.data, sharpened_img.shape[1], sharpened_img.shape[0],
+                                   QtGui.QImage.Format_Grayscale8).rgbSwapped()
+            # scale image to preview window:
+            preview_scaled = preview.scaled(self.ui.mid_label_livePreview.width(),
+                                            self.ui.mid_label_livePreview.height(),
+                                            QtCore.Qt.KeepAspectRatio)
+            self.ui.mid_label_livePreview.setPixmap(QtGui.QPixmap.fromImage(preview_scaled))
+
+            self.preview_image = sharpened_img
+        else:
+            # TODO: fix preview before image
+            self.sharpen = False
+            self.preview_image = self.old_preview
+
+            # display sharpened image:
+            preview = QtGui.QImage(self.old_preview.data, self.old_preview.shape[1], self.old_preview.shape[0],
+                                   QtGui.QImage.Format_Grayscale8).rgbSwapped()
+            # scale image to preview window:
+            preview_scaled = preview.scaled(self.ui.mid_label_livePreview.width(),
+                                            self.ui.mid_label_livePreview.height(),
+                                            QtCore.Qt.KeepAspectRatio)
+            self.ui.mid_label_livePreview.setPixmap(QtGui.QPixmap.fromImage(preview_scaled))
+
+            self.old_preview = None
+
     def apply_gamma(self):
         self.preview_image = self.gamma_image
         self.log_info("gamma of " + str(self.ui.right_horizontalSlider_gamma.value()) + " applied")
         self.gamma = True
+
+    def crop_video(self):
+        if self.ui.mid_radioButton_cropVideo.isChecked(True):
+            self.crop = True
+            self.crop_off_start = int(self.ui.mid_lineEdit_startCropOff.text())
+            self.crop_off_end = int(self.ui.mid_lineEdit_endCropOff.text())
+        else:
+            self.crop = True
+            self.crop_off_start = 0
+            self.crop_off_end = 0
+
+    """
+    save videos - apply enhancements to all
+    """
+
 
 
 if __name__ == "__main__":
