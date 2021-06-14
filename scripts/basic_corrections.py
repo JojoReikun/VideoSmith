@@ -25,3 +25,14 @@ def adjust_gamma(image, gamma_value):
                       for i in np.arange(0, 256)]).astype("uint8")
     # apply gamma correction using the lookup table
     return cv2.LUT(image, table)
+
+
+def adjust_contrast(image, contrast_value):
+    """
+    to adjust the contrast multiply each pixel of the image with a positive value. For increasing the contrast,
+    the contrast_value needs to be >1, for decreasing the contrast >0 and <1.
+    :param image:
+    :param contrast_value:
+    :return:
+    """
+    return image

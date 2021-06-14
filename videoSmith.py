@@ -8,7 +8,7 @@ from pathlib import Path
 from PyQt5 import QtWidgets, QtGui, QtCore
 
 from qt_gui.videoEnhancer import Ui_MainWindow  # importing main window of the GUI
-from scripts import handle_video_preview, histograms, basic_corrections, canny_edge_detection, sharpen
+from scripts import handle_video_preview, histograms, basic_corrections, canny_edge_detection, sharpen, save_enhanced_videos
 
 """
 Locations of required executables and how to use them:
@@ -100,8 +100,6 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.videolist = []
         self.selected_video = 0
         self.number_of_videos = 0
-        self.progress = 0
-        self.updateProgress(self.progress)
         self.selected_preview = 0
         self.preview_frame = self.ui.mid_horizontalSlider_frame.value()
         self.preview_image = None   # always the current preview image
@@ -115,13 +113,12 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.brightness = False
         self.contrast = False
         self.crop = False
+        self.enhancements = [self.equalization, self.thresholding, self.gamma, self.brightness, self.contrast]
 
         # set output location
         self.output_location = os.path.join(str(Path.cwd()), "output")
         self.update_output_location()
         self.ui.left_pushButton_OutputFolder.pressed.connect(self.set_output_location)
-
-        self.output_location_folder = Path(self.output_location).joinpath("videoSmith_output")
 
         # video list
         self.ui.left_pushButton_loadVideos.pressed.connect(self.load_videos)
@@ -176,6 +173,15 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.crop_off_end = 0
         self.ui.mid_radioButton_cropVideo.pressed.connect(self.crop_video)
 
+        """
+        saving videos
+        """
+        self.progress = 0
+        self.updateProgress(self.progress)
+        self.enhancements_apply = []
+        self.ui.right_pushButton_ApplySettingsToAll.pressed.connect(self.apply_to_all)
+
+
     """
     Setup and Video Previews
     """
@@ -228,6 +234,10 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
             # write list of videos to listWidget
             for i, video in enumerate(self.videolist):
                 if i < 10:
+                    item = "(00" + str(i) + ")" + "  " + video
+                    self.add_videos_to_list(item)
+                    self.ui.left_comboBox_selectPreview.addItem(item)
+                elif 10 <= i < 100:
                     item = "(0" + str(i) + ")" + "  " + video
                     self.add_videos_to_list(item)
                     self.ui.left_comboBox_selectPreview.addItem(item)
@@ -374,6 +384,8 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.videolist = []
         self.ui.lcdNumber.display(self.number_of_videos)
         self.ui.mid_label_livePreview.setText("video preview disabled")
+        self.ui.right_progressBar.setValue(0)
+        self.progress = 0
 
         # reset histogram stuff
         self.ui.mid_label_histOrig.setText("original histogram")
@@ -383,6 +395,20 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
         self.grayframe = None
         self.grayframe_equalized = None
         self.ui.mid_pushButton_updatePreview.setDisabled(True)
+
+        # reset enhancements
+        self.preview_image = None
+        self.preview_frame = 0
+        self.enhancements = []
+        self.gamma_image = None
+        self.gamma = False
+        self.gamma_value = 10
+        self.ui.right_horizontalSlider_gamma.setValue(10)
+        self.contrast = False
+        self.ui.right_horizontalSlider_contrast.setValue(0)
+        self.contrast_image = None
+        self.contrast_value = 0
+
 
     """
     Video Enhancements
@@ -572,13 +598,46 @@ class videoSmith_mainWindow(QtWidgets.QMainWindow):
             self.crop_off_start = int(self.ui.mid_lineEdit_startCropOff.text())
             self.crop_off_end = int(self.ui.mid_lineEdit_endCropOff.text())
         else:
-            self.crop = True
+            self.crop = False
             self.crop_off_start = 0
             self.crop_off_end = 0
 
     """
     save videos - apply enhancements to all
     """
+    def apply_to_all(self):
+        worker = Worker(self.apply_to_all_threaded)
+        worker.signals.progress.connect(self.updateProgress)
+        self.threadpool.start(worker)
+
+    def apply_to_all_threaded(self, progress_callback):
+        enhancement_dict = {}
+        for enh in self.enhancements:
+            if enh == True:
+                print("enh: ", enh)
+                self.enhancements_apply.append(enh)
+                # enhancement_dict[str(enh)] = value
+
+            else:
+                continue
+        self.log_info("following enhancements will be applied to videos: ")
+        for element in self.enhancements_apply:
+            self.log_info("- " + str(element))
+
+        # TODO: amend for all enhancements
+        success_msg = save_enhanced_videos.save_new_videos(self.output_location, self.videolist, self.enhancements_apply,
+                                                           self.crop, self.crop_off_start, self.crop_off_end,
+                                                           self.gamma, self.gamma_value, callback=progress_callback)
+        progress_callback.emit(100)
+
+        self.log_info(success_msg)
+
+        self.enhancements_apply = []
+
+    def updateProgress(self, progress):
+        self.progress = progress
+        self.ui.right_progressBar.setValue(int(self.progress))
+
 
 
 
